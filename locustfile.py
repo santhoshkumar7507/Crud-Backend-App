@@ -1,12 +1,4 @@
-from locust import HttpUser, task, between, events
-
-
-@events.test_start.add_listener
-def on_test_start(environment, **kwargs):
-    """Strip trailing slash from host URL to prevent //api/items double-slash failures."""
-    if environment.host and environment.host.endswith("/"):
-        environment.host = environment.host.rstrip("/")
-        print(f"✅ Host auto-fixed to: {environment.host}")
+from locust import HttpUser, task, between
 
 
 class CrudFastAPIUser(HttpUser):
@@ -15,6 +7,14 @@ class CrudFastAPIUser(HttpUser):
     Wait time is randomized between 1-3 seconds between tasks (realistic behavior).
     """
     wait_time = between(1, 3)
+
+    def on_start(self):
+        """
+        Runs once per simulated user when they start.
+        Auto-strips trailing slash from base URL to prevent //endpoint double-slash failures.
+        """
+        if self.client.base_url.endswith("/"):
+            self.client.base_url = self.client.base_url.rstrip("/")
 
     @task(4)
     def get_all_items(self):
