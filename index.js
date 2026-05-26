@@ -4,6 +4,14 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const redis = require('redis');
+const redisClient = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
+});
+redisClient.on('error', (err) => console.log('Redis Client Error', err));
+redisClient.connect();
+
+
 app.use(cors());
 app.use(express.json());
 
@@ -19,9 +27,20 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // GET all items (simulated slow endpoint)
 app.get('/api/items', async (req, res) => {
-    // Simulate database latency
-    await delay(1000); 
-    res.json(items);
+    try {
+        const cachedItems = await redisClient.get('items');
+        if (cachedItems) {
+            return res.json(JSON.parse(cachedItems));
+        }
+        // Simulate database latency
+        await delay(1000); 
+        await redisClient.set('items', JSON.stringify(items), { EX: 60 });
+        res.json(items);
+    } catch (err) {
+        console.error("Redis error, falling back to DB", err);
+        await delay(1000);
+        res.json(items);
+    }
 });
 
 // GET single item
